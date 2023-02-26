@@ -1,0 +1,94 @@
+//系统热键框组件增强
+import win.ui;
+import win.ui.ctrl.edit;
+import key;
+import key.hook;
+import console;
+namespace win.ui.ctrl begin
+class superHotkey {
+    ctor (parent, tParam) {
+        tParam.cls = "edit";
+        tParam.style |= 0x800/*_ES_READONLY*/			
+		tParam.exstyle |= 0x200/*_WS_EX_CLIENTEDGE*/;   
+		tParam.bgcolor = ::GetSysColor(0x5/*_COLOR_WINDOW*/ );
+        this = ..win.ui.ctrl.edit(parent, tParam);               
+        var hkArr = {};
+    }
+	keyhookproc = function(){
+		keyhook.proc = function(msg,vkcode,scancode,injected,flags,timeStamp,extraInfo){
+        	if( injected ) return;	        			    
+        	select(msg) {
+        		case 0x100/*_WM_KEYDOWN*/ ,0x104/*_WM_SYSKEYDOWN*/{
+        		    //取不区分左右的键名
+					var vkName = ..key.getName(vkcode,,true)
+					vkName = ( vkName == "LWIN" ? "WIN" : vkName)					
+					
+					//按下的键已在 hkArr数组中则不再重复记录
+					if(..table.find(hkArr,vkName)) return true;
+					
+					var modKeys = {"WIN","CTRL","ALT","SHIFT"}					
+					if( !..table.find(modKeys,vkName) ){
+						if(#hkArr){
+							if(!..table.find(modKeys,hkArr[#hkArr])){//上次按下的是非修饰键								
+								return true; 	
+							}	 
+						}												
+					};					
+					
+					//记录按下的键到数组中
+					..table.push(hkArr,vkName)
+					
+    				if(!#hkArr){
+    					this.text = vkName
+    				}else {
+						var newArr = {}
+						for(k,v in modKeys){							
+							var ret = ..table.removeByValue(hkArr,v)
+							if(ret){
+								..table.push(newArr,v)
+							}							
+						}						
+						hkArr = ..table.concat(newArr,hkArr)
+    					this.text = ..string.join(hkArr,"+")
+    				}    				
+    				this.setsel(1000,1000) //移动光标到最后    				    
+    				    
+    				if(vkcode == 0x8/*_VK_BACK*/){
+    					this.text = ""
+    				}
+        			return true;
+        		}
+        		case 0x101/*_WM_KEYUP*/,0x105/*_WM_SYSKEYUP*/{     				
+        		    var vkName = ..key.getName(vkcode,,true)
+					vkName = ( vkName == "LWIN" ? "WIN" : vkName)					
+     				..table.removeByValue(hkArr,vkName)     				
+        			return true;         			
+        		}
+        	}   
+    	}
+	};
+
+	onFocusGot = function(){
+		..table.clear(hkArr)//可防止定义WIN+L时无法屏蔽锁屏导致抬起按键事件下无法清理hkArr中记录的当前按键
+		keyhook = ..key.hook()
+ 		this.keyhookproc()
+	};
+	onFocusLost = function(){
+		keyhook.close()	
+	}
+
+	
+    
+}	     
+end;
+/*DSG{{*/
+var winform = win.form(text="aardio Form";right=744;bottom=489;border="dialog frame";max=false;parent=...)
+winform.add(
+superHotkey={cls="superHotkey";left=241;top=203;right=445;bottom=226;bgcolor=16777215;z=1}
+)
+/*}}*/
+
+//console.open()
+winform.superHotkey.setFocus()
+winform.show();
+win.loopMessage();
